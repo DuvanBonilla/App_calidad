@@ -1,7 +1,17 @@
 import 'package:app_calidad/screens/home.dart';
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
-void main() => runApp(const CalidadApp());
+Future<void> main() async {
+  // Necesario antes de inicializaciones async
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializar Hive
+  await Hive.initFlutter();
+
+  // Iniciar aplicación
+  runApp(const CalidadApp());
+}
 
 class CalidadApp extends StatelessWidget {
   const CalidadApp({super.key});
@@ -12,9 +22,8 @@ class CalidadApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Calidad App',
       initialRoute: '/',
-      routes: {'/': (context) => const HomePage(),
-      },
-      
+      routes: {'/': (context) => const HomePage()},
+
       // home:  HomePage(),
     );
   }

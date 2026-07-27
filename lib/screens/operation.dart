@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:app_calidad/screens/box.dart';
 import 'package:app_calidad/screens/fotos.dart';
+import 'package:app_calidad/screens/pending_reports_page.dart';
 import 'package:app_calidad/screens/resumen.dart';
 import 'package:app_calidad/services/local_storage_service.dart';
+import 'package:app_calidad/services/pending_report_service.dart';
 import 'package:app_calidad/services/report_service.dart';
 import 'package:flutter/material.dart';
 import 'package:excel/excel.dart';
@@ -233,6 +235,19 @@ class _OperacionPageState extends State<OperacionPage> {
             //   child: Image.asset('assets/image/LogoBlanco.png'),
             // ),
             IconButton(
+              tooltip: "Reportes pendientes",
+              icon: const Icon(
+                Icons.cloud_off_rounded,
+                color: Colors.orangeAccent,
+              ),
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PendingReportsPage()),
+                );
+              },
+            ),
+            IconButton(
               tooltip: "Enviar reporte",
               icon: const Icon(Icons.cloud_upload_rounded, color: Colors.white),
               onPressed: () async {
@@ -260,6 +275,8 @@ class _OperacionPageState extends State<OperacionPage> {
                 if (confirmar != true) return;
 
                 bool dialogoCargaAbierto = false;
+                Map<String, dynamic>? reporte;
+                List<String> fotos = [];
 
                 try {
                   /// Resumen
@@ -269,8 +286,7 @@ class _OperacionPageState extends State<OperacionPage> {
                   final calidad = await LocalStorageService.obtenerCajas();
 
                   /// Fotos
-                  final fotos =
-                      await LocalStorageService.obtenerFotosGenerales();
+                  fotos = await LocalStorageService.obtenerFotosGenerales();
 
                   /// Validaciones
                   if (placaController.text.trim().isEmpty) {
@@ -282,9 +298,11 @@ class _OperacionPageState extends State<OperacionPage> {
                   }
 
                   /// Construir reporte
-                  final reporte = {
+                  reporte = {
                     "placa": placaController.text.trim(),
-                    "fecha": DateFormat("yyyy-MM-dd HH:mm:ss").format(DateTime.now()),
+                    "fecha": DateFormat(
+                      "yyyy-MM-dd HH:mm:ss",
+                    ).format(DateTime.now()),
                     "semana": DateTime.now().weekOfYear,
                     "resumen": resumen,
                     "calidad": calidad.map((e) => e.toJson()).toList(),
@@ -351,25 +369,63 @@ class _OperacionPageState extends State<OperacionPage> {
                 } catch (e) {
                   if (!mounted) return;
 
-                  /// Cerrar carga únicamente si está abierta
+                  /// Cerrar diálogo de carga
                   if (dialogoCargaAbierto) {
                     Navigator.of(context).pop();
                     dialogoCargaAbierto = false;
                   }
 
-                  await showDialog(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: const Text("Error"),
-                      content: Text(e.toString()),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text("Aceptar"),
+                  try {
+                    /// Guardar reporte en pendientes
+                    await PendingReportService.guardarReporte(
+                      datos: reporte!,
+                      fotos: fotos,
+                    );
+
+                    /// Limpiar la bandeja principal
+                    await SharedPreferenceHelper.clearSummaryList();
+                    await LocalStorageService.limpiarCajas();
+                    await LocalStorageService.limpiarFotosGenerales();
+                    await limpiarFormulario();
+
+                    if (!mounted) return;
+
+                    await showDialog(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: Text("Sin conexión"),
+                        content: Text(
+                          "No fue posible enviar el reporte.\n\n"
+                          "El reporte fue movido a la bandeja de pendientes para enviarlo posteriormente.",
                         ),
-                      ],
-                    ),
-                  );
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text("Aceptar"),
+                          ),
+                        ],
+                      ),
+                    );
+                  } catch (errorPendiente) {
+                    if (!mounted) return;
+
+                    await showDialog(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text("Error"),
+                        content: Text(
+                          "No fue posible enviar el reporte ni guardarlo en pendientes.\n\n"
+                          "$errorPendiente",
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text("Aceptar"),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
                 }
               },
             ),

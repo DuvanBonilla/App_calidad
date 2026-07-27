@@ -14,6 +14,7 @@ class CalidadPage extends StatefulWidget {
 
 class _CalidadPageState extends State<CalidadPage> {
   final TextEditingController ibmController = TextEditingController();
+  final TextEditingController otroDefectoController = TextEditingController();
   String? tapaSeleccionada;
   List<Defect> defectos = [];
   final Set<int> defectosSeleccionados = {};
@@ -91,18 +92,36 @@ class _CalidadPageState extends State<CalidadPage> {
       return;
     }
 
+    // Saber si el defecto OTRO está seleccionado
+    final bool otroSeleccionado =
+        defectoOtro != null && defectosSeleccionados.contains(defectoOtro!.id);
+
+    // Si seleccionó OTRO, debe escribir la descripción
+    if (otroSeleccionado && otroDefectoController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Debe especificar cuál es el otro defecto."),
+        ),
+      );
+
+      return;
+    }
+
     setState(() {
       cajas.add(
         CajaCalidad(
           tapa: tapaSeleccionada!,
           ibm: ibm,
           defectos: defectosSeleccionados.toList(),
+          otroDefecto: otroSeleccionado
+              ? otroDefectoController.text.trim()
+              : null,
         ),
       );
 
       ibmController.clear();
-
       defectosSeleccionados.clear();
+      otroDefectoController.clear();
     });
     await LocalStorageService.guardarCajas(cajas);
   }
@@ -118,15 +137,23 @@ class _CalidadPageState extends State<CalidadPage> {
   void nuevaCaja() {
     setState(() {
       ibmController.clear();
-
       defectosSeleccionados.clear();
+      otroDefectoController.clear();
     });
+  }
+
+  Defect? get defectoOtro {
+    try {
+      return defectos.firstWhere((d) => d.name.trim().toUpperCase() == "OTRO");
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
   void dispose() {
     ibmController.dispose();
-
+    otroDefectoController.dispose();
     super.dispose();
   }
 
@@ -271,12 +298,37 @@ class _CalidadPageState extends State<CalidadPage> {
                                       defectosSeleccionados.add(e.id);
                                     } else {
                                       defectosSeleccionados.remove(e.id);
+
+                                      // Si desmarcó OTRO, limpiar descripción
+                                      if (e.name.trim().toUpperCase() ==
+                                          "OTRO") {
+                                        otroDefectoController.clear();
+                                      }
                                     }
                                   });
                                 },
                               );
                             }).toList(),
                           ),
+                          if (defectoOtro != null &&
+                              defectosSeleccionados.contains(
+                                defectoOtro!.id,
+                              )) ...[
+                            const SizedBox(height: 15),
+
+                            TextField(
+                              controller: otroDefectoController,
+                              textCapitalization: TextCapitalization.characters,
+                              decoration: InputDecoration(
+                                labelText: "Especifique el defecto",
+                                hintText: "Ej: Mancha, golpe, daño...",
+                                prefixIcon: const Icon(Icons.edit_note),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 25),
 
                           SizedBox(
